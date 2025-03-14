@@ -29,8 +29,9 @@ This project utilizes Python's GUI capabilities to develop a user-friendly **Inv
 - **Barcode Scanning Integration**: Speeds up inventory and billing processes.
 - **Multi-Payment Gateway Support**: Expands payment options for users.
 
-## 📷 System Diagram
-*(Add a system architecture diagram here if available)*
+## 📷 Use Case Diagram
+![Alt text](PDFS/usecase.png)
+
 
 ## 🎯 Applications
 - **Pharmacies** – Efficient medicine stock and invoice management.
@@ -40,7 +41,6 @@ This project utilizes Python's GUI capabilities to develop a user-friendly **Inv
 
 ## 💡 Technologies Used
 - **Frontend**: Tkinter for GUI-based application.
-- **Backend**: Python with Flask/Django for handling logic.
 - **Database**: SQLite/MySQL for local data storage.
 - **Security**: User authentication for secure access.
 
