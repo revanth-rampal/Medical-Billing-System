@@ -1,0 +1,412 @@
+{% extends "base.html" %}
+
+{% block title %}New Bill - Pharmacy System{% endblock %}
+
+{% block head_extra %}
+<style>
+    .search-results-item, .cart-item {
+        padding: 0.75rem;
+        border: 1px solid #e5e7eb; /* gray-200 */
+        border-radius: 0.375rem; /* rounded-md */
+        margin-bottom: 0.5rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .cart-item-details { flex-grow: 1; }
+    .quantity-input { width: 70px; text-align: center; }
+    #customerDetailsDisplay { margin-top: 1rem; padding: 1rem; background-color: #eef2ff; border-radius: 0.375rem;}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h1 class="text-3xl font-bold text-gray-800 mb-6">Create New Bill</h1>
+
+    <div class="mb-6">
+        <label for="billingShopId" class="block text-sm font-medium text-gray-700 mb-1">Billing Shop ID (Optional)</label>
+        <input type="text" id="billingShopId" name="billingShopId" class="input-field md:w-1/2" placeholder="Enter current shop/terminal ID">
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div>
+            <h2 class="text-xl font-semibold text-gray-700 mb-3">Add Items to Bill</h2>
+            <div class="mb-4">
+                <label for="medicineSearchQuery" class="block text-sm font-medium text-gray-700 mb-1">Search Medicine (by Name or Item's Shop ID)</label>
+                <div class="flex">
+                    <input type="text" id="medicineSearchQuery" class="input-field rounded-r-none" placeholder="Enter Name or Shop ID...">
+                    <button id="searchMedicineBtn" class="btn btn-primary rounded-l-none px-4">
+                        <i class="fas fa-search mr-1"></i> Search
+                    </button>
+                </div>
+            </div>
+            <div id="medicineSearchResults" class="mb-4 max-h-60 overflow-y-auto">
+                </div>
+
+            <h3 class="text-lg font-semibold text-gray-600 mb-2">Current Bill Items</h3>
+            <div id="billItemsContainer" class="mb-4">
+                <p id="emptyCartMsg" class="text-gray-500">No items added yet.</p>
+            </div>
+            <div class="text-right">
+                <strong class="text-xl">Subtotal: ₹<span id="billSubtotal">0.00</span></strong>
+            </div>
+        </div>
+
+        <div>
+            <h2 class="text-xl font-semibold text-gray-700 mb-3">Customer Details</h2>
+            <div class="mb-4">
+                <label for="customerPhoneSearch" class="block text-sm font-medium text-gray-700 mb-1">Customer Phone Number</label>
+                <div class="flex">
+                    <input type="tel" id="customerPhoneSearch" class="input-field rounded-r-none" placeholder="Enter phone to find or add customer">
+                    <button id="findCustomerBtn" class="btn btn-secondary rounded-l-none px-4">
+                        <i class="fas fa-user-check mr-1"></i> Find
+                    </button>
+                </div>
+            </div>
+            <div id="customerDetailsDisplay" class="hidden">
+                <p><strong>Name:</strong> <span id="custName"></span></p>
+                <p><strong>Phone:</strong> <span id="custPhone"></span></p>
+                <p><strong>Email:</strong> <span id="custEmail"></span></p>
+                <p><strong>Address:</strong> <span id="custAddress"></span></p>
+            </div>
+            <div id="newCustomerLinkContainer" class="mt-2 hidden">
+                <p class="text-sm text-red-600">Customer not found.</p>
+                <a href="{{ url_for('customers') }}" target="_blank" class="text-indigo-600 hover:text-indigo-800 font-semibold">
+                    <i class="fas fa-user-plus mr-1"></i> Click here to Add New Customer (opens new tab)
+                </a>
+                <p class="text-xs text-gray-500 mt-1">After adding, click 'Find' again or manually enter details below for this bill.</p>
+            </div>
+             <div id="tempCustomerFields" class="mt-4 hidden">
+                <h4 class="text-md font-semibold text-gray-600 mb-2">Enter Details for this Bill (Walk-in):</h4>
+                <div>
+                    <label for="tempCustomerName" class="block text-sm font-medium text-gray-700 mb-1">Customer Name</label>
+                    <input type="text" id="tempCustomerName" class="input-field text-sm" placeholder="Name (Optional)">
+                </div>
+            </div>
+
+
+            <div class="mt-8 pt-6 border-t">
+                <div class="text-right mb-4">
+                    <strong class="text-2xl font-bold text-gray-800">Total Bill Amount: ₹<span id="finalBillTotal">0.00</span></strong>
+                </div>
+                <button id="generateBillBtn" class="btn btn-success w-full text-lg py-3" disabled>
+                    <i class="fas fa-receipt mr-2"></i>Generate Bill
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    // DOM Elements
+    const medicineSearchQuery = document.getElementById('medicineSearchQuery');
+    const searchMedicineBtn = document.getElementById('searchMedicineBtn');
+    const medicineSearchResults = document.getElementById('medicineSearchResults');
+    const billItemsContainer = document.getElementById('billItemsContainer');
+    const emptyCartMsg = document.getElementById('emptyCartMsg');
+    const billSubtotalEl = document.getElementById('billSubtotal');
+    const finalBillTotalEl = document.getElementById('finalBillTotal');
+
+    const customerPhoneSearch = document.getElementById('customerPhoneSearch');
+    const findCustomerBtn = document.getElementById('findCustomerBtn');
+    const customerDetailsDisplay = document.getElementById('customerDetailsDisplay');
+    const newCustomerLinkContainer = document.getElementById('newCustomerLinkContainer');
+    const tempCustomerFields = document.getElementById('tempCustomerFields');
+    const tempCustomerNameInput = document.getElementById('tempCustomerName');
+
+
+    const custNameEl = document.getElementById('custName');
+    const custPhoneEl = document.getElementById('custPhone');
+    const custEmailEl = document.getElementById('custEmail');
+    const custAddressEl = document.getElementById('custAddress');
+    
+    const billingShopIdInput = document.getElementById('billingShopId');
+    const generateBillBtn = document.getElementById('generateBillBtn');
+
+    let cart = []; // Array to hold { medicineId, name, price, quantity, stock }
+    let currentCustomer = null; // To hold { id, name, phone_number, email, address } or null
+
+    // --- Medicine Search ---
+    searchMedicineBtn.addEventListener('click', async () => {
+        const query = medicineSearchQuery.value.trim();
+        if (!query) {
+            medicineSearchResults.innerHTML = '<p class="text-sm text-gray-500 p-2">Please enter a search term.</p>';
+            return;
+        }
+        medicineSearchResults.innerHTML = '<p class="text-sm text-gray-500 p-2"><i class="fas fa-spinner fa-spin mr-1"></i>Searching...</p>';
+
+        try {
+            const response = await fetch(`{{ url_for('search_medicines_for_billing') }}?query=${encodeURIComponent(query)}`);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            const results = await response.json();
+            renderMedicineSearchResults(results);
+        } catch (error) {
+            console.error('Error searching medicines:', error);
+            medicineSearchResults.innerHTML = `<p class="text-sm text-red-500 p-2">Error searching: ${error.message}. Check console.</p>`;
+        }
+    });
+    
+    medicineSearchQuery.addEventListener('keypress', function(event) {
+        if (event.key === 'Enter') {
+            event.preventDefault(); // Prevent form submission if it were in a form
+            searchMedicineBtn.click(); // Trigger search button click
+        }
+    });
+
+
+    function renderMedicineSearchResults(results) {
+        medicineSearchResults.innerHTML = ''; // Clear previous results
+        if (!results || results.length === 0) {
+            medicineSearchResults.innerHTML = '<p class="text-sm text-gray-500 p-2">No medicines found matching your query.</p>';
+            return;
+        }
+        results.forEach(med => {
+            // Check if medicine is already in cart
+            const isInCart = cart.some(item => item.medicineId === med.id);
+            const buttonDisabled = isInCart ? 'disabled' : '';
+            const buttonText = isInCart ? 'Added' : 'Add to Bill';
+            const buttonClass = isInCart ? 'btn-secondary' : 'btn-primary';
+
+            const resultDiv = document.createElement('div');
+            resultDiv.className = 'search-results-item text-sm';
+            resultDiv.innerHTML = `
+                <div>
+                    <strong>${med.medicineName}</strong> (Batch: ${med.batchNo})<br>
+                    Price: ₹${parseFloat(med.sellingPrice || 0).toFixed(2)} | Stock: ${med.quantity} | Shop ID: ${med.shop_id || 'N/A'}
+                </div>
+                <button class="btn ${buttonClass} btn-sm py-1 px-2 add-to-cart-btn" data-med-id="${med.id}" data-name="${med.medicineName}" data-price="${med.sellingPrice || 0}" data-stock="${med.quantity}" ${buttonDisabled}>
+                    <i class="fas fa-plus mr-1"></i> ${buttonText}
+                </button>
+            `;
+            medicineSearchResults.appendChild(resultDiv);
+        });
+
+        // Add event listeners to new "Add to Bill" buttons
+        document.querySelectorAll('.add-to-cart-btn').forEach(button => {
+            button.addEventListener('click', function() {
+                if (this.disabled) return; // Do nothing if already added
+
+                const medicine = {
+                    medicineId: parseInt(this.dataset.medId),
+                    name: this.dataset.name,
+                    price: parseFloat(this.dataset.price),
+                    stock: parseInt(this.dataset.stock),
+                    quantity: 1 // Default quantity
+                };
+                
+                if (medicine.stock < 1) {
+                    alert(`${medicine.name} is out of stock.`);
+                    return;
+                }
+
+                cart.push(medicine);
+                this.textContent = 'Added'; // Update button text
+                this.classList.remove('btn-primary');
+                this.classList.add('btn-secondary');
+                this.disabled = true; 
+                renderCart();
+                updateTotals();
+            });
+        });
+    }
+
+    // --- Shopping Cart ---
+    function renderCart() {
+        billItemsContainer.innerHTML = ''; // Clear previous cart items
+        if (cart.length === 0) {
+            billItemsContainer.appendChild(emptyCartMsg);
+            emptyCartMsg.style.display = 'block';
+            generateBillBtn.disabled = true;
+            return;
+        }
+        emptyCartMsg.style.display = 'none';
+        generateBillBtn.disabled = false;
+
+        cart.forEach((item, index) => {
+            const itemDiv = document.createElement('div');
+            itemDiv.className = 'cart-item text-sm';
+            itemDiv.innerHTML = `
+                <div class="cart-item-details">
+                    <strong>${item.name}</strong> (₹${item.price.toFixed(2)} each)
+                </div>
+                <div class="flex items-center">
+                    <label for="qty-${index}" class="sr-only">Quantity</label>
+                    <input type="number" id="qty-${index}" value="${item.quantity}" min="1" max="${item.stock}" class="input-field quantity-input py-1 px-2 text-sm mr-2" data-index="${index}">
+                    <button class="btn btn-danger btn-sm py-1 px-2 remove-from-cart-btn" data-index="${index}" title="Remove Item">
+                        <i class="fas fa-trash-alt"></i>
+                    </button>
+                </div>
+            `;
+            billItemsContainer.appendChild(itemDiv);
+        });
+
+        // Add event listeners for quantity changes and remove buttons
+        document.querySelectorAll('.quantity-input').forEach(input => {
+            input.addEventListener('change', handleQuantityChange);
+            input.addEventListener('input', handleQuantityChange); // For immediate feedback
+        });
+        document.querySelectorAll('.remove-from-cart-btn').forEach(button => {
+            button.addEventListener('click', function() {
+                const indexToRemove = parseInt(this.dataset.index);
+                
+                // Re-enable the corresponding "Add to Bill" button in search results
+                const removedItem = cart[indexToRemove];
+                const correspondingSearchButton = document.querySelector(`.add-to-cart-btn[data-med-id="${removedItem.medicineId}"]`);
+                if (correspondingSearchButton) {
+                    correspondingSearchButton.textContent = 'Add to Bill';
+                    correspondingSearchButton.classList.remove('btn-secondary');
+                    correspondingSearchButton.classList.add('btn-primary');
+                    correspondingSearchButton.disabled = false;
+                }
+
+                cart.splice(indexToRemove, 1);
+                renderCart();
+                updateTotals();
+            });
+        });
+    }
+
+    function handleQuantityChange(event) {
+        const index = parseInt(event.target.dataset.index);
+        let newQuantity = parseInt(event.target.value);
+        const item = cart[index];
+
+        if (isNaN(newQuantity) || newQuantity < 1) {
+            newQuantity = 1;
+        } else if (newQuantity > item.stock) {
+            newQuantity = item.stock;
+            alert(`Maximum stock for ${item.name} is ${item.stock}.`);
+        }
+        event.target.value = newQuantity; // Update input field if corrected
+        item.quantity = newQuantity;
+        updateTotals();
+    }
+
+    function updateTotals() {
+        let subtotal = 0;
+        cart.forEach(item => {
+            subtotal += item.price * item.quantity;
+        });
+        billSubtotalEl.textContent = subtotal.toFixed(2);
+        finalBillTotalEl.textContent = subtotal.toFixed(2); // For now, total is same as subtotal
+    }
+
+    // --- Customer Search ---
+    findCustomerBtn.addEventListener('click', async () => {
+        const phone = customerPhoneSearch.value.trim();
+        if (!phone) {
+            alert('Please enter a customer phone number.');
+            return;
+        }
+        customerDetailsDisplay.classList.add('hidden');
+        newCustomerLinkContainer.classList.add('hidden');
+        tempCustomerFields.classList.add('hidden');
+        currentCustomer = null;
+
+        try {
+            const response = await fetch(`{{ url_for('get_customer_for_billing') }}?phone=${encodeURIComponent(phone)}`);
+            const result = await response.json();
+
+            if (result.success && result.customer) {
+                currentCustomer = result.customer;
+                custNameEl.textContent = currentCustomer.name;
+                custPhoneEl.textContent = currentCustomer.phone_number;
+                custEmailEl.textContent = currentCustomer.email || 'N/A';
+                custAddressEl.textContent = currentCustomer.address || 'N/A';
+                customerDetailsDisplay.classList.remove('hidden');
+                tempCustomerNameInput.value = ''; // Clear temp name if registered customer found
+            } else {
+                newCustomerLinkContainer.classList.remove('hidden');
+                tempCustomerFields.classList.remove('hidden'); // Show fields for walk-in
+            }
+        } catch (error) {
+            console.error('Error finding customer:', error);
+            alert('An error occurred while finding the customer. Check console.');
+            newCustomerLinkContainer.classList.remove('hidden');
+            tempCustomerFields.classList.remove('hidden');
+        }
+    });
+    
+    customerPhoneSearch.addEventListener('keypress', function(event) {
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            findCustomerBtn.click();
+        }
+    });
+
+
+    // --- Generate Bill ---
+    generateBillBtn.addEventListener('click', async () => {
+        if (cart.length === 0) {
+            alert("Cannot generate bill. Cart is empty.");
+            return;
+        }
+
+        const billData = {
+            cart: cart.map(item => ({ medicine_id: item.medicineId, quantity_billed: item.quantity, price_per_unit_at_billing: item.price })),
+            customer_id: currentCustomer ? currentCustomer.id : null,
+            customer_phone_temp: !currentCustomer ? customerPhoneSearch.value.trim() : null,
+            customer_name_temp: !currentCustomer ? tempCustomerNameInput.value.trim() : null,
+            total_amount: parseFloat(finalBillTotalEl.textContent),
+            billed_from_shop_id: billingShopIdInput.value.trim() || null
+        };
+        
+        // Basic validation for temporary customer details if no registered customer
+        if (!currentCustomer && !billData.customer_phone_temp) {
+            alert("Please provide a customer phone number or find a registered customer.");
+            customerPhoneSearch.focus();
+            return;
+        }
+
+
+        generateBillBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Generating...';
+        generateBillBtn.disabled = true;
+
+        try {
+            const response = await fetch("{{ url_for('generate_bill_route') }}", {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(billData)
+            });
+            const result = await response.json();
+
+            if (result.success) {
+                alert(`Bill generated successfully! Bill ID: ${result.bill_id}\nTotal: ₹${result.total_amount.toFixed(2)}`);
+                // Optionally, redirect to a bill details page or clear the form
+                // For now, just clear everything
+                cart = [];
+                currentCustomer = null;
+                renderCart();
+                updateTotals();
+                customerPhoneSearch.value = '';
+                tempCustomerNameInput.value = '';
+                medicineSearchQuery.value = '';
+                medicineSearchResults.innerHTML = '';
+                customerDetailsDisplay.classList.add('hidden');
+                newCustomerLinkContainer.classList.add('hidden');
+                tempCustomerFields.classList.add('hidden');
+                billingShopIdInput.value = ''; // Clear billing shop ID
+            } else {
+                alert(`Error generating bill: ${result.message}`);
+            }
+        } catch (error) {
+            console.error('Error generating bill:', error);
+            alert('An unexpected error occurred. Please check console.');
+        } finally {
+            generateBillBtn.innerHTML = '<i class="fas fa-receipt mr-2"></i>Generate Bill';
+            // Re-enable based on cart status, handled by renderCart
+             if (cart.length === 0) { generateBillBtn.disabled = true;} else {generateBillBtn.disabled = false;}
+        }
+    });
+
+    // Initial state
+    renderCart(); // To show "No items added yet" and disable button
+});
+</script>
+{% endblock %}
+
