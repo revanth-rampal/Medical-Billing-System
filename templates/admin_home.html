@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Dashboard - Pharmacy System{% endblock %}
+
+{% block content %}
+<div class="text-center py-12">
+    <h1 class="text-4xl font-bold text-gray-800 mb-4">
+        <i class="fas fa-user-shield text-indigo-600 mr-2"></i>Admin Dashboard
+    </h1>
+    <p class="text-lg text-gray-600 mb-8">Welcome, Admin! You have full access to the system.</p>
+</div>
+
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+    <a href="{{ url_for('home') }}" class="card hover:shadow-lg transition-shadow">
+        <div class="p-6 text-center">
+            <i class="fas fa-tachometer-alt text-4xl text-indigo-600 mb-4"></i>
+            <h2 class="text-2xl font-semibold text-gray-700">Main Dashboard</h2>
+            <p class="text-gray-500 mt-2">View general system overview.</p>
+        </div>
+    </a>
+    <a href="{{ url_for('inventory') }}" class="card hover:shadow-lg transition-shadow">
+        <div class="p-6 text-center">
+            <i class="fas fa-pills text-4xl text-indigo-600 mb-4"></i>
+            <h2 class="text-2xl font-semibold text-gray-700">Inventory</h2>
+            <p class="text-gray-500 mt-2">Manage medicines, stock, and expiry.</p>
+        </div>
+    </a>
+    <a href="{{ url_for('customers') }}" class="card hover:shadow-lg transition-shadow">
+        <div class="p-6 text-center">
+            <i class="fas fa-users text-4xl text-indigo-600 mb-4"></i>
+            <h2 class="text-2xl font-semibold text-gray-700">Customers</h2>
+            <p class="text-gray-500 mt-2">Manage customer information.</p>
+        </div>
+    </a>
+    <a href="{{ url_for('billing_page') }}" class="card hover:shadow-lg transition-shadow">
+        <div class="p-6 text-center">
+            <i class="fas fa-file-invoice-dollar text-4xl text-indigo-600 mb-4"></i>
+            <h2 class="text-2xl font-semibold text-gray-700">Billing</h2>
+            <p class="text-gray-500 mt-2">Create and manage invoices.</p>
+        </div>
+    </a>
+</div>
+
+<div class="card">
+    <h2 class="text-2xl font-semibold text-gray-700 mb-6">
+        <i class="fas fa-qrcode text-indigo-600 mr-2"></i>UPI Payment Settings
+    </h2>
+    <form method="POST" action="{{ url_for('admin_upi_settings') }}">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
+            <div>
+                <label for="upi_id" class="block text-sm font-medium text-gray-700 mb-1">UPI ID (Virtual Payment Address) <span class="text-red-500">*</span></label>
+                <input type="text" id="upi_id" name="upi_id" class="input-field" value="{{ upi_settings.upi_id or '' }}" placeholder="yourname@bank" required>
+                <p class="text-xs text-gray-500 mt-1">e.g., 1234567890@upi or businessname@okaxis</p>
+            </div>
+            <div>
+                <label for="payee_name" class="block text-sm font-medium text-gray-700 mb-1">Payee Name (Your Pharmacy Name) <span class="text-red-500">*</span></label>
+                <input type="text" id="payee_name" name="payee_name" class="input-field" value="{{ upi_settings.payee_name or '' }}" placeholder="Your Pharmacy Name" required>
+                 <p class="text-xs text-gray-500 mt-1">This name will be shown to the customer in their UPI app.</p>
+            </div>
+        </div>
+        <div class="flex justify-end mt-6">
+            <button type="submit" class="btn btn-primary">
+                <i class="fas fa-save mr-2"></i>Save UPI Settings
+            </button>
+        </div>
+    </form>
+</div>
+
+<div class="card mt-8 md:col-span-2 lg:col-span-4">
+    <h3 class="text-xl font-semibold text-gray-700 mb-3">System Logs / Activity (Placeholder)</h3>
+    <p class="text-gray-500">Future section for viewing system activity, user actions, etc.</p>
+</div>
+
+{% endblock %}
+

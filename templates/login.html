@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Pharmacy System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; /* gray-100 */ display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+        .login-card { background-color: white; border-radius: 0.75rem; /* rounded-xl */ box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05); padding: 2.5rem; /* p-10 */ width: 100%; max-width: 28rem; /* max-w-md */ }
+        .input-field { width: 100%; padding: 0.75rem 1rem; border: 1px solid #d1d5db; /* gray-300 */ border-radius: 0.375rem; /* rounded-md */ box-shadow: inset 0 1px 2px rgba(0,0,0,0.075); margin-bottom: 1rem; }
+        .input-field:focus { border-color: #4f46e5; /* indigo-600 */ outline: 0; box-shadow: 0 0 0 0.2rem rgba(79,70,229,0.25); }
+        .btn-primary { background-color: #4f46e5; /* indigo-600 */ color: white; padding: 0.75rem 1.5rem; border-radius: 0.375rem; /* rounded-md */ font-weight: 600; transition: background-color 0.2s ease-in-out; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; width: 100%; }
+        .btn-primary:hover { background-color: #4338ca; /* indigo-700 */ }
+        .alert-danger { background-color: #fee2e2; /* red-100 */ color: #b91c1c; /* red-700 */ padding: 0.75rem 1rem; border-radius: 0.375rem; margin-bottom: 1.5rem; text-sm; }
+    </style>
+</head>
+<body>
+    <div class="login-card">
+        <div class="text-center mb-8">
+            <i class="fas fa-clinic-medical text-5xl text-indigo-600"></i>
+            <h1 class="text-3xl font-bold text-gray-800 mt-4">PharmaSys Login</h1>
+            <p class="text-gray-600">Access your pharmacy management dashboard.</p>
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    {% if category == 'error' %}
+                    <div class="alert-danger" role="alert">
+                        {{ message }}
+                    </div>
+                    {% endif %}
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <form method="POST" action="{{ url_for('login') }}">
+            <div>
+                <label for="user_id" class="block text-sm font-medium text-gray-700 mb-1">User ID</label>
+                <input type="text" id="user_id" name="user_id" class="input-field" placeholder="e.g., admin or PharmaEmployee" required>
+            </div>
+            <div class="mt-4">
+                <label for="password" class="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                <input type="password" id="password" name="password" class="input-field" placeholder="Enter your password" required>
+            </div>
+            <div class="mt-8">
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-sign-in-alt mr-2"></i>Login
+                </button>
+            </div>
+        </form>
+        <p class="text-xs text-gray-500 mt-6 text-center">
+            Hint: admin/admin or PharmaEmployee/pharma
+        </p>
+    </div>
+</body>
+</html>
+

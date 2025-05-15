@@ -3,6 +3,7 @@ DROP TABLE IF EXISTS medicines;
 DROP TABLE IF EXISTS customers;
 DROP TABLE IF EXISTS bills;
 DROP TABLE IF EXISTS bill_items;
+DROP TABLE IF EXISTS app_settings; -- New table for application settings
 
 CREATE TABLE medicines (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -52,4 +53,15 @@ CREATE TABLE bill_items (
     FOREIGN KEY (bill_id) REFERENCES bills (id),
     FOREIGN KEY (medicine_id) REFERENCES medicines (id)
 );
+
+-- New table for application-wide settings like UPI details
+CREATE TABLE app_settings (
+    setting_key TEXT PRIMARY KEY NOT NULL,
+    setting_value TEXT
+);
+
+-- Pre-populate with default empty UPI settings to avoid errors on first run
+-- The admin will update these via the admin panel.
+INSERT OR IGNORE INTO app_settings (setting_key, setting_value) VALUES ('upi_id', '');
+INSERT OR IGNORE INTO app_settings (setting_key, setting_value) VALUES ('payee_name', '');
 

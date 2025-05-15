@@ -15,7 +15,60 @@
     }
     .cart-item-details { flex-grow: 1; }
     .quantity-input { width: 70px; text-align: center; }
-    #customerDetailsDisplay { margin-top: 1rem; padding: 1rem; background-color: #eef2ff; border-radius: 0.375rem;}
+    #customerDetailsDisplay { margin-top: 1rem; padding: 1rem; background-color: #eef2ff; /* indigo-50 */ border-radius: 0.375rem;}
+
+    /* Modal Styles */
+    .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: rgba(0, 0, 0, 0.6);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 0.3s ease, visibility 0.3s ease;
+    }
+    .modal-overlay.active {
+        opacity: 1;
+        visibility: visible;
+    }
+    .modal-content {
+        background-color: white;
+        padding: 2rem; /* p-8 */
+        border-radius: 0.5rem; /* rounded-lg */
+        box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        width: 90%;
+        max-width: 450px; /* Increased max-width for QR */
+        text-align: center;
+        position: relative;
+    }
+    .modal-close-btn {
+        position: absolute;
+        top: 1rem;
+        right: 1rem;
+        background: none;
+        border: none;
+        font-size: 1.5rem;
+        color: #6b7280; /* gray-500 */
+        cursor: pointer;
+    }
+    .modal-close-btn:hover {
+        color: #1f2937; /* gray-800 */
+    }
+    #qrCodeImage {
+        max-width: 100%;
+        height: auto;
+        margin-top: 1rem;
+        margin-bottom: 1.5rem;
+        border: 1px solid #e5e7eb; /* gray-200 */
+        padding: 0.5rem;
+        border-radius: 0.25rem; /* rounded-sm */
+    }
 </style>
 {% endblock %}
 
@@ -46,7 +99,7 @@
             <h3 class="text-lg font-semibold text-gray-600 mb-2">Current Bill Items</h3>
             <div id="billItemsContainer" class="mb-4">
                 <p id="emptyCartMsg" class="text-gray-500">No items added yet.</p>
-            </div>
+                </div>
             <div class="text-right">
                 <strong class="text-xl">Subtotal: ₹<span id="billSubtotal">0.00</span></strong>
             </div>
@@ -80,7 +133,7 @@
                 <h4 class="text-md font-semibold text-gray-600 mb-2">Enter Details for this Bill (Walk-in):</h4>
                 <div>
                     <label for="tempCustomerName" class="block text-sm font-medium text-gray-700 mb-1">Customer Name</label>
-                    <input type="text" id="tempCustomerName" class="input-field text-sm" placeholder="Name (Optional)">
+                    <input type="text" id="tempCustomerName" class="input-field text-sm" placeholder="Name (Optional for walk-in)">
                 </div>
             </div>
 
@@ -90,10 +143,23 @@
                     <strong class="text-2xl font-bold text-gray-800">Total Bill Amount: ₹<span id="finalBillTotal">0.00</span></strong>
                 </div>
                 <button id="generateBillBtn" class="btn btn-success w-full text-lg py-3" disabled>
-                    <i class="fas fa-receipt mr-2"></i>Generate Bill
+                    <i class="fas fa-receipt mr-2"></i>Generate Bill & Show QR
                 </button>
             </div>
         </div>
+    </div>
+</div>
+
+<div id="upiQrModal" class="modal-overlay">
+    <div class="modal-content">
+        <button id="closeUpiModalBtn" class="modal-close-btn" aria-label="Close modal">&times;</button>
+        <h2 class="text-2xl font-bold text-gray-800 mb-2">Scan to Pay</h2>
+        <div id="upiQrMessage" class="text-sm text-gray-600 mb-3"></div>
+        <img id="qrCodeImage" src="" alt="UPI QR Code">
+        <p class="text-lg font-semibold">Amount: ₹<span id="qrBillAmount"></span></p>
+        <p class="text-sm text-gray-500">Bill ID: <span id="qrBillId"></span></p>
+        <p class="text-xs text-gray-500 mt-3">Payee: <span id="qrPayeeName"></span></p>
+        <button id="upiModalDoneBtn" class="btn btn-primary w-full mt-6 py-2.5">Payment Complete / Close</button>
     </div>
 </div>
 {% endblock %}
@@ -101,7 +167,7 @@
 {% block scripts %}
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-    // DOM Elements
+    // DOM Elements (existing)
     const medicineSearchQuery = document.getElementById('medicineSearchQuery');
     const searchMedicineBtn = document.getElementById('searchMedicineBtn');
     const medicineSearchResults = document.getElementById('medicineSearchResults');
@@ -109,28 +175,63 @@ document.addEventListener('DOMContentLoaded', function () {
     const emptyCartMsg = document.getElementById('emptyCartMsg');
     const billSubtotalEl = document.getElementById('billSubtotal');
     const finalBillTotalEl = document.getElementById('finalBillTotal');
-
     const customerPhoneSearch = document.getElementById('customerPhoneSearch');
     const findCustomerBtn = document.getElementById('findCustomerBtn');
     const customerDetailsDisplay = document.getElementById('customerDetailsDisplay');
     const newCustomerLinkContainer = document.getElementById('newCustomerLinkContainer');
     const tempCustomerFields = document.getElementById('tempCustomerFields');
     const tempCustomerNameInput = document.getElementById('tempCustomerName');
-
-
     const custNameEl = document.getElementById('custName');
     const custPhoneEl = document.getElementById('custPhone');
     const custEmailEl = document.getElementById('custEmail');
     const custAddressEl = document.getElementById('custAddress');
-    
     const billingShopIdInput = document.getElementById('billingShopId');
     const generateBillBtn = document.getElementById('generateBillBtn');
 
-    let cart = []; // Array to hold { medicineId, name, price, quantity, stock }
-    let currentCustomer = null; // To hold { id, name, phone_number, email, address } or null
+    // UPI Modal DOM Elements
+    const upiQrModal = document.getElementById('upiQrModal');
+    const closeUpiModalBtn = document.getElementById('closeUpiModalBtn');
+    const upiModalDoneBtn = document.getElementById('upiModalDoneBtn');
+    const qrCodeImageEl = document.getElementById('qrCodeImage');
+    const qrBillAmountEl = document.getElementById('qrBillAmount');
+    const qrBillIdEl = document.getElementById('qrBillId');
+    const qrPayeeNameEl = document.getElementById('qrPayeeName');
+    const upiQrMessageEl = document.getElementById('upiQrMessage');
+
+
+    let cart = []; 
+    let currentCustomer = null; 
+
+    // --- Helper: Show/Hide UPI Modal ---
+    function showUpiModal() {
+        upiQrModal.classList.add('active');
+    }
+    function hideUpiModal() {
+        upiQrModal.classList.remove('active');
+        // Clear QR details when hiding
+        qrCodeImageEl.src = "https://placehold.co/250x250/e2e8f0/94a3b8?text=Generating+QR...";
+        qrBillAmountEl.textContent = "";
+        qrBillIdEl.textContent = "";
+        qrPayeeNameEl.textContent = "";
+        upiQrMessageEl.textContent = "";
+    }
+
+    if(closeUpiModalBtn) closeUpiModalBtn.addEventListener('click', hideUpiModal);
+    if(upiModalDoneBtn) upiModalDoneBtn.addEventListener('click', () => {
+        hideUpiModal();
+        // Optionally, reset the entire billing form here if needed after payment
+        clearBillingForm();
+    });
+    // Close modal if overlay is clicked
+    if(upiQrModal) upiQrModal.addEventListener('click', function(event) {
+        if (event.target === upiQrModal) {
+            hideUpiModal();
+        }
+    });
+
 
     // --- Medicine Search ---
-    searchMedicineBtn.addEventListener('click', async () => {
+    if(searchMedicineBtn) searchMedicineBtn.addEventListener('click', async () => {
         const query = medicineSearchQuery.value.trim();
         if (!query) {
             medicineSearchResults.innerHTML = '<p class="text-sm text-gray-500 p-2">Please enter a search term.</p>';
@@ -140,33 +241,29 @@ document.addEventListener('DOMContentLoaded', function () {
 
         try {
             const response = await fetch(`{{ url_for('search_medicines_for_billing') }}?query=${encodeURIComponent(query)}`);
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
             const results = await response.json();
             renderMedicineSearchResults(results);
         } catch (error) {
             console.error('Error searching medicines:', error);
-            medicineSearchResults.innerHTML = `<p class="text-sm text-red-500 p-2">Error searching: ${error.message}. Check console.</p>`;
+            medicineSearchResults.innerHTML = `<p class="text-sm text-red-500 p-2">Error: ${error.message}.</p>`;
         }
     });
     
-    medicineSearchQuery.addEventListener('keypress', function(event) {
+    if(medicineSearchQuery) medicineSearchQuery.addEventListener('keypress', function(event) {
         if (event.key === 'Enter') {
-            event.preventDefault(); // Prevent form submission if it were in a form
-            searchMedicineBtn.click(); // Trigger search button click
+            event.preventDefault(); 
+            if(searchMedicineBtn) searchMedicineBtn.click();
         }
     });
 
-
     function renderMedicineSearchResults(results) {
-        medicineSearchResults.innerHTML = ''; // Clear previous results
+        medicineSearchResults.innerHTML = ''; 
         if (!results || results.length === 0) {
-            medicineSearchResults.innerHTML = '<p class="text-sm text-gray-500 p-2">No medicines found matching your query.</p>';
+            medicineSearchResults.innerHTML = '<p class="text-sm text-gray-500 p-2">No medicines found.</p>';
             return;
         }
         results.forEach(med => {
-            // Check if medicine is already in cart
             const isInCart = cart.some(item => item.medicineId === med.id);
             const buttonDisabled = isInCart ? 'disabled' : '';
             const buttonText = isInCart ? 'Added' : 'Add to Bill';
@@ -186,17 +283,16 @@ document.addEventListener('DOMContentLoaded', function () {
             medicineSearchResults.appendChild(resultDiv);
         });
 
-        // Add event listeners to new "Add to Bill" buttons
         document.querySelectorAll('.add-to-cart-btn').forEach(button => {
             button.addEventListener('click', function() {
-                if (this.disabled) return; // Do nothing if already added
+                if (this.disabled) return; 
 
                 const medicine = {
                     medicineId: parseInt(this.dataset.medId),
                     name: this.dataset.name,
                     price: parseFloat(this.dataset.price),
                     stock: parseInt(this.dataset.stock),
-                    quantity: 1 // Default quantity
+                    quantity: 1 
                 };
                 
                 if (medicine.stock < 1) {
@@ -205,7 +301,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
 
                 cart.push(medicine);
-                this.textContent = 'Added'; // Update button text
+                this.textContent = 'Added'; 
                 this.classList.remove('btn-primary');
                 this.classList.add('btn-secondary');
                 this.disabled = true; 
@@ -217,15 +313,15 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // --- Shopping Cart ---
     function renderCart() {
-        billItemsContainer.innerHTML = ''; // Clear previous cart items
+        billItemsContainer.innerHTML = ''; 
         if (cart.length === 0) {
             billItemsContainer.appendChild(emptyCartMsg);
             emptyCartMsg.style.display = 'block';
-            generateBillBtn.disabled = true;
+            if(generateBillBtn) generateBillBtn.disabled = true;
             return;
         }
         emptyCartMsg.style.display = 'none';
-        generateBillBtn.disabled = false;
+        if(generateBillBtn) generateBillBtn.disabled = false;
 
         cart.forEach((item, index) => {
             const itemDiv = document.createElement('div');
@@ -245,25 +341,21 @@ document.addEventListener('DOMContentLoaded', function () {
             billItemsContainer.appendChild(itemDiv);
         });
 
-        // Add event listeners for quantity changes and remove buttons
         document.querySelectorAll('.quantity-input').forEach(input => {
             input.addEventListener('change', handleQuantityChange);
-            input.addEventListener('input', handleQuantityChange); // For immediate feedback
+            input.addEventListener('input', handleQuantityChange); 
         });
         document.querySelectorAll('.remove-from-cart-btn').forEach(button => {
             button.addEventListener('click', function() {
                 const indexToRemove = parseInt(this.dataset.index);
-                
-                // Re-enable the corresponding "Add to Bill" button in search results
                 const removedItem = cart[indexToRemove];
                 const correspondingSearchButton = document.querySelector(`.add-to-cart-btn[data-med-id="${removedItem.medicineId}"]`);
                 if (correspondingSearchButton) {
-                    correspondingSearchButton.textContent = 'Add to Bill';
+                    correspondingSearchButton.innerHTML = '<i class="fas fa-plus mr-1"></i> Add to Bill';
                     correspondingSearchButton.classList.remove('btn-secondary');
                     correspondingSearchButton.classList.add('btn-primary');
                     correspondingSearchButton.disabled = false;
                 }
-
                 cart.splice(indexToRemove, 1);
                 renderCart();
                 updateTotals();
@@ -276,28 +368,25 @@ document.addEventListener('DOMContentLoaded', function () {
         let newQuantity = parseInt(event.target.value);
         const item = cart[index];
 
-        if (isNaN(newQuantity) || newQuantity < 1) {
-            newQuantity = 1;
-        } else if (newQuantity > item.stock) {
+        if (isNaN(newQuantity) || newQuantity < 1) newQuantity = 1;
+        else if (newQuantity > item.stock) {
             newQuantity = item.stock;
             alert(`Maximum stock for ${item.name} is ${item.stock}.`);
         }
-        event.target.value = newQuantity; // Update input field if corrected
+        event.target.value = newQuantity; 
         item.quantity = newQuantity;
         updateTotals();
     }
 
     function updateTotals() {
         let subtotal = 0;
-        cart.forEach(item => {
-            subtotal += item.price * item.quantity;
-        });
+        cart.forEach(item => { subtotal += item.price * item.quantity; });
         billSubtotalEl.textContent = subtotal.toFixed(2);
-        finalBillTotalEl.textContent = subtotal.toFixed(2); // For now, total is same as subtotal
+        finalBillTotalEl.textContent = subtotal.toFixed(2);
     }
 
     // --- Customer Search ---
-    findCustomerBtn.addEventListener('click', async () => {
+    if(findCustomerBtn) findCustomerBtn.addEventListener('click', async () => {
         const phone = customerPhoneSearch.value.trim();
         if (!phone) {
             alert('Please enter a customer phone number.');
@@ -319,29 +408,44 @@ document.addEventListener('DOMContentLoaded', function () {
                 custEmailEl.textContent = currentCustomer.email || 'N/A';
                 custAddressEl.textContent = currentCustomer.address || 'N/A';
                 customerDetailsDisplay.classList.remove('hidden');
-                tempCustomerNameInput.value = ''; // Clear temp name if registered customer found
+                tempCustomerNameInput.value = ''; 
             } else {
                 newCustomerLinkContainer.classList.remove('hidden');
-                tempCustomerFields.classList.remove('hidden'); // Show fields for walk-in
+                tempCustomerFields.classList.remove('hidden'); 
             }
         } catch (error) {
             console.error('Error finding customer:', error);
-            alert('An error occurred while finding the customer. Check console.');
+            alert('An error occurred. Check console.');
             newCustomerLinkContainer.classList.remove('hidden');
             tempCustomerFields.classList.remove('hidden');
         }
     });
     
-    customerPhoneSearch.addEventListener('keypress', function(event) {
+    if(customerPhoneSearch) customerPhoneSearch.addEventListener('keypress', function(event) {
         if (event.key === 'Enter') {
             event.preventDefault();
-            findCustomerBtn.click();
+            if(findCustomerBtn) findCustomerBtn.click();
         }
     });
 
+    function clearBillingForm() {
+        cart = [];
+        currentCustomer = null;
+        renderCart();
+        updateTotals();
+        if(customerPhoneSearch) customerPhoneSearch.value = '';
+        if(tempCustomerNameInput) tempCustomerNameInput.value = '';
+        if(medicineSearchQuery) medicineSearchQuery.value = '';
+        if(medicineSearchResults) medicineSearchResults.innerHTML = '';
+        if(customerDetailsDisplay) customerDetailsDisplay.classList.add('hidden');
+        if(newCustomerLinkContainer) newCustomerLinkContainer.classList.add('hidden');
+        if(tempCustomerFields) tempCustomerFields.classList.add('hidden');
+        if(billingShopIdInput) billingShopIdInput.value = '';
+        if(generateBillBtn) generateBillBtn.innerHTML = '<i class="fas fa-receipt mr-2"></i>Generate Bill & Show QR';
+    }
 
     // --- Generate Bill ---
-    generateBillBtn.addEventListener('click', async () => {
+    if(generateBillBtn) generateBillBtn.addEventListener('click', async () => {
         if (cart.length === 0) {
             alert("Cannot generate bill. Cart is empty.");
             return;
@@ -356,9 +460,18 @@ document.addEventListener('DOMContentLoaded', function () {
             billed_from_shop_id: billingShopIdInput.value.trim() || null
         };
         
-        // Basic validation for temporary customer details if no registered customer
-        if (!currentCustomer && !billData.customer_phone_temp) {
-            alert("Please provide a customer phone number or find a registered customer.");
+        if (!currentCustomer && !billData.customer_phone_temp && !billData.customer_name_temp) {
+            // If not a registered customer, and no temp details, at least phone is good to have
+            // but for walk-ins, even name is optional. Let's make phone or name required for walk-ins for better record.
+            // For now, we allow fully anonymous if admin doesn't enforce via other means.
+        }
+        if (!currentCustomer && !billData.customer_phone_temp && !billData.customer_name_temp) {
+             if (!confirm("No customer details provided (neither registered nor temporary). Proceed with anonymous bill?")) {
+                customerPhoneSearch.focus();
+                return;
+            }
+        } else if (!currentCustomer && !billData.customer_phone_temp) {
+             alert("Please provide a customer phone number for walk-in customer, or find a registered customer.");
             customerPhoneSearch.focus();
             return;
         }
@@ -376,21 +489,16 @@ document.addEventListener('DOMContentLoaded', function () {
             const result = await response.json();
 
             if (result.success) {
-                alert(`Bill generated successfully! Bill ID: ${result.bill_id}\nTotal: ₹${result.total_amount.toFixed(2)}`);
-                // Optionally, redirect to a bill details page or clear the form
-                // For now, just clear everything
-                cart = [];
-                currentCustomer = null;
-                renderCart();
-                updateTotals();
-                customerPhoneSearch.value = '';
-                tempCustomerNameInput.value = '';
-                medicineSearchQuery.value = '';
-                medicineSearchResults.innerHTML = '';
-                customerDetailsDisplay.classList.add('hidden');
-                newCustomerLinkContainer.classList.add('hidden');
-                tempCustomerFields.classList.add('hidden');
-                billingShopIdInput.value = ''; // Clear billing shop ID
+                // Bill generated successfully, now show QR modal
+                qrCodeImageEl.src = `data:image/png;base64,${result.qr_code_image}`;
+                qrBillAmountEl.textContent = result.total_amount.toFixed(2);
+                qrBillIdEl.textContent = result.bill_id;
+                qrPayeeNameEl.textContent = result.payee_name || 'N/A';
+                upiQrMessageEl.textContent = result.upi_url_message || "Scan the QR code with any UPI app to pay.";
+                showUpiModal();
+                // Don't clear form immediately, user might need to see details or re-print.
+                // Form will be cleared when modal's "Done" button is clicked.
+                // alert(`Bill generated successfully! Bill ID: ${result.bill_id}\nTotal: ₹${result.total_amount.toFixed(2)}`);
             } else {
                 alert(`Error generating bill: ${result.message}`);
             }
@@ -398,14 +506,14 @@ document.addEventListener('DOMContentLoaded', function () {
             console.error('Error generating bill:', error);
             alert('An unexpected error occurred. Please check console.');
         } finally {
-            generateBillBtn.innerHTML = '<i class="fas fa-receipt mr-2"></i>Generate Bill';
+            generateBillBtn.innerHTML = '<i class="fas fa-receipt mr-2"></i>Generate Bill & Show QR';
             // Re-enable based on cart status, handled by renderCart
              if (cart.length === 0) { generateBillBtn.disabled = true;} else {generateBillBtn.disabled = false;}
         }
     });
 
     // Initial state
-    renderCart(); // To show "No items added yet" and disable button
+    renderCart(); 
 });
 </script>
 {% endblock %}
